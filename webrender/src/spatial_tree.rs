@@ -353,6 +353,44 @@ impl SceneSpatialTree {
             node_index = node.parent.expect("unable to find parent node");
         }
 
+        // NeoSymbian (browser WB5b, diagnosis): the first chains walked, on stdout
+        {
+            use std::sync::atomic::{AtomicU32, Ordering};
+            static SHOWN: AtomicU32 = AtomicU32::new(0);
+            if SHOWN.fetch_add(1, Ordering::Relaxed) < 12 {
+                let mut chain = String::new();
+                let mut i = spatial_node_index;
+                loop {
+                    let n = self.get_node_info(i);
+                    let kind = match n.node_type {
+                        SpatialNodeType::ReferenceFrame(..) => String::from("ref"),
+                        SpatialNodeType::StickyFrame(..) => String::from("sticky"),
+                        SpatialNodeType::ScrollFrame(ref info) => match info.frame_kind {
+                            ScrollFrameKind::PipelineRoot { is_root_pipeline } => {
+                                format!("pipe(root={})", is_root_pipeline)
+                            }
+                            ScrollFrameKind::Explicit => format!(
+                                "scroll({}x{} vp {}x{})",
+                                info.scrollable_size.width as i32,
+                                info.scrollable_size.height as i32,
+                                info.viewport_rect.width() as i32,
+                                info.viewport_rect.height() as i32
+                            ),
+                        },
+                    };
+                    chain.push_str(&format!(" {}:{}", i.0, kind));
+                    match n.parent {
+                        Some(p) if i != self.root_reference_frame_index => i = p,
+                        _ => break,
+                    }
+                }
+                println!(
+                    "wr: scroll root of{} -> real {} outer {}",
+                    chain, real_scroll_root.0, outermost_scroll_root.0
+                );
+            }
+        }
+
         // If we didn't find any real (scrollable) frames, then return the outermost
         // redundant scroll frame. This is important so that we can correctly find
         // the clips defined on the content which should be handled when drawing the
