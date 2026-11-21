@@ -297,8 +297,40 @@ impl CachedSurface {
             }
         }
 
+        neo_invalidation::count(reason.clone() as usize);
         if self.invalidation_reason.is_none() {
             self.invalidation_reason = Some(reason);
+        }
+    }
+}
+
+/// NeoSymbian (browser WB5b): how many tiles were invalidated for each reason, on stdout every 2 s while it happens.
+mod neo_invalidation {
+    use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+    use std::sync::OnceLock;
+    use std::time::Instant;
+
+    static COUNTS: [AtomicU32; 11] = [const { AtomicU32::new(0) }; 11];
+    static LAST_MS: AtomicU64 = AtomicU64::new(0);
+    static START: OnceLock<Instant> = OnceLock::new();
+
+    pub fn count(reason: usize) {
+        COUNTS[reason.min(10)].fetch_add(1, Ordering::Relaxed);
+        let now = START.get_or_init(Instant::now).elapsed().as_millis() as u64;
+        let last = LAST_MS.load(Ordering::Relaxed);
+        if now >= last + 2000 && LAST_MS.compare_exchange(last, now, Ordering::Relaxed, Ordering::Relaxed).is_ok() {
+            let names = [
+                "bg", "opacity", "notexture", "nosurface", "primcount", "content", "compositor", "validrect",
+                "scale", "surfacecontent", "?",
+            ];
+            let mut line = String::from("wr: tiles invalidated:");
+            for (i, c) in COUNTS.iter().enumerate() {
+                let n = c.swap(0, Ordering::Relaxed);
+                if n > 0 {
+                    line.push_str(&format!(" {} {}", names[i], n));
+                }
+            }
+            println!("{line}");
         }
     }
 }
