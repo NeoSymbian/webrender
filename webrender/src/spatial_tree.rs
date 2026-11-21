@@ -306,6 +306,15 @@ impl SceneSpatialTree {
                             if is_root_pipeline {
                                 break;
                             }
+                            // NeoSymbian (browser WB5b): Servo puts each page in an iframe of its own and scrolls
+                            // the page through that iframe's pipeline root. With no explicit scroll frame found
+                            // below it, the root reference frame was chosen, so the page's picture cache tiles
+                            // stood still while the text moved through them: every visible tile was rasterized
+                            // again on every scroll frame. The page's pipeline root is its scroll root.
+                            if real_scroll_root == self.root_reference_frame_index && !current_scroll_root_is_sticky {
+                                real_scroll_root = node_index;
+                                outermost_scroll_root = node_index;
+                            }
                         }
                         ScrollFrameKind::Explicit => {
                             // Store the closest scroll root we find to the root, for use
