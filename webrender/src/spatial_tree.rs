@@ -304,6 +304,14 @@ impl SceneSpatialTree {
                         ScrollFrameKind::PipelineRoot { is_root_pipeline } => {
                             // Once we encounter a pipeline root, there is no need to look further
                             if is_root_pipeline {
+                                // NeoSymbian (browser WB5b): Servo's page is this root pipeline and scrolls through
+                                // its root scroll frame (seen on the Pixel: page content -> pipe(root=true) -> refs).
+                                // Choosing the root reference frame left the tiles still while the text moved
+                                // through them; the root pipeline's scroll frame is the page's scroll root.
+                                if real_scroll_root == self.root_reference_frame_index && !current_scroll_root_is_sticky {
+                                    real_scroll_root = node_index;
+                                    outermost_scroll_root = node_index;
+                                }
                                 break;
                             }
                             // NeoSymbian (browser WB5b): Servo puts each page in an iframe of its own and scrolls
